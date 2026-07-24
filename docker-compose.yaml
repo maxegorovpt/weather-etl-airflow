@@ -117,6 +117,19 @@ services:
         test: ["CMD", "pg_isready", "-U", "weather_user", "-d", "weather"]
         interval: 5s
         retries: 5
+  dashboard:
+      build: ./dashboard
+      container_name: weather_dashboard
+      environment:
+        WAREHOUSE_HOST: weather-db
+        WAREHOUSE_PORT_INTERNAL: 5432
+        WAREHOUSE_DB: ${WAREHOUSE_DB}
+        WAREHOUSE_USER: ${WAREHOUSE_USER}
+        WAREHOUSE_PASSWORD: ${WAREHOUSE_PASSWORD}
+      ports:
+        - "8501:8501"
+      depends_on:
+        - weather-db
 
   redis:
     # Redis is limited to 7.2-bookworm due to licencing change
