@@ -12,11 +12,6 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
 
 CITIES = [
-    {"name": "London", "country": "GB"},
-    {"name": "New York", "country": "US"},
-    {"name": "Tokyo", "country": "JP"},
-    {"name": "Sydney", "country": "AU"},
-    {"name": "Cape Town", "country": "ZA"},
     {"name": "Lisbon", "country": "PT"},
 ]
 
