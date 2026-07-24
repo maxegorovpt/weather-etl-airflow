@@ -67,5 +67,9 @@ real-world data warehouses are seeded (backfill) and then kept up to date
 
 ## Screenshots
 [DAG graph view] 
+<img width="930" height="851" alt="Screenshot 2026-07-25 at 00 18 25" src="https://github.com/user-attachments/assets/275ba3bb-7e17-4a70-956b-8d39e5c90303" />
 
 [dashboard]
+<img width="1325" height="821" alt="Screenshot 2026-07-25 at 00 07 24" src="https://github.com/user-attachments/assets/c56af2bf-551c-48c1-879c-c36db539e9bd" />
+<img width="1310" height="506" alt="Screenshot 2026-07-25 at 00 07 42" src="https://github.com/user-attachments/assets/3ff1a527-7a93-435d-8016-a28c13ed70e8" />
+<img width="1307" height="537" alt="Screenshot 2026-07-25 at 00 17 00" src="https://github.com/user-attachments/assets/663bc96d-ec86-4fd7-ba21-d4d03797b55c" />
