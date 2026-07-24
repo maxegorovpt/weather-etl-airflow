@@ -116,6 +116,60 @@ with col_b:
     fig_cond = px.bar(condition_counts, x="condition", y="count")
     st.plotly_chart(fig_cond, use_container_width=True)
 
+# ---- Humidity trend ----
+st.subheader("Humidity trend over time")
+daily_humidity = df.groupby("date")["humidity"].mean().reset_index()
+daily_humidity["rolling_7d"] = daily_humidity["humidity"].rolling(7, min_periods=1).mean()
+fig_humidity = px.line(
+    daily_humidity, x="date", y=["humidity", "rolling_7d"],
+    labels={"value": "Humidity (%)", "date": "", "variable": ""},
+)
+fig_humidity.data[0].name = "Daily avg"
+fig_humidity.data[1].name = "7-day rolling avg"
+fig_humidity.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02))
+st.plotly_chart(fig_humidity, use_container_width=True)
+
+st.subheader("Temperature vs humidity")
+st.caption("Reveals muggy vs dry-heat conditions by season")
+
+def season(m):
+    return {12: "Winter", 1: "Winter", 2: "Winter",
+             3: "Spring", 4: "Spring", 5: "Spring",
+             6: "Summer", 7: "Summer", 8: "Summer",
+             9: "Autumn", 10: "Autumn", 11: "Autumn"}[m]
+
+scatter_df = df.copy()
+scatter_df["season"] = scatter_df["month"].apply(season)
+fig_scatter = px.density_heatmap(
+    scatter_df, x="temp_c", y="humidity", facet_col="season",
+    facet_col_wrap=2,
+    nbinsx=25, nbinsy=25,
+    color_continuous_scale="Viridis",
+    labels={"temp_c": "Temp (°C)", "humidity": "Humidity (%)"},
+    category_orders={"season": ["Winter", "Spring", "Summer", "Autumn"]},
+)
+fig_scatter.update_layout(height=500)
+st.plotly_chart(fig_scatter, use_container_width=True)
+
+st.subheader("Wind speed distribution")
+st.caption("How often is it calm vs windy?")
+fig_wind = px.histogram(
+    df, x="wind_speed", nbins=30,
+    labels={"wind_speed": "Wind speed (m/s)"},
+)
+st.plotly_chart(fig_wind, use_container_width=True)
+
+st.subheader("How do temp, humidity, pressure & wind relate?")
+corr_cols = ["temp_c", "humidity", "pressure", "wind_speed"]
+corr = df[corr_cols].corr()
+corr.columns = ["Temp", "Humidity", "Pressure", "Wind speed"]
+corr.index = ["Temp", "Humidity", "Pressure", "Wind speed"]
+fig_corr = px.imshow(
+    corr, text_auto=".2f", color_continuous_scale="RdBu_r", zmin=-1, zmax=1,
+    labels=dict(color="Correlation"),
+)
+st.plotly_chart(fig_corr, use_container_width=True)
+
 # ---- Extremes table ----
 st.subheader("Notable extremes in selected period")
 hottest_day = df.loc[df["temp_c"].idxmax()]

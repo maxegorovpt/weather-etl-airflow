@@ -1,31 +1,71 @@
-# Weather ETL Pipeline
+# Lisbon Weather ETL Pipeline
 
-An end-to-end ETL pipeline built with Airflow, extracting hourly weather
-data from OpenWeatherMap, transforming and validating it, and loading it
-into Postgres — visualized in a Streamlit dashboard.
+An end-to-end ETL pipeline built with Airflow, combining a 3-year historical
+backfill with live hourly extraction, transforming and validating the data,
+and loading it into Postgres — visualized in an interactive Streamlit
+dashboard.
 
 ## Architecture
 [diagram here]
 
+```
+Open-Meteo Archive API  ──(one-time backfill)──┐
+                                                 ├──> Postgres (fact_weather) ──> Streamlit dashboard
+OpenWeatherMap API  ──(Airflow, hourly)────────┘
+```
+
 ## Stack
-- Apache Airflow (TaskFlow API) — orchestration
-- PostgreSQL — data warehouse (star schema: dim_city + fact_weather)
-- Streamlit — dashboard
+- Apache Airflow (TaskFlow API) — orchestration for the ongoing hourly extract
+- PostgreSQL — data warehouse (star schema: `dim_city` + `fact_weather`)
+- Streamlit + Plotly — dashboard
 - Docker Compose — local infra
 
+## Data sources
+- **Historical backfill**: [Open-Meteo Archive API](https://open-meteo.com/en/docs/historical-weather-api)
+  (free, no key required) — used once to load ~3 years of hourly data for Lisbon
+- **Live extraction**: [OpenWeatherMap Current Weather API](https://openweathermap.org/current) —
+  run hourly by Airflow to keep the dataset current going forward
+
+Combining a bulk historical load with an incremental live pipeline mirrors how
+real-world data warehouses are seeded (backfill) and then kept up to date
+(incremental ETL).
+
 ## Design decisions
-- Idempotent upserts (ON CONFLICT) so retries/backfills never duplicate data
-- Raw landing table (raw_weather) preserves API responses for replay
+- Idempotent upserts (`ON CONFLICT`) so retries/backfills never duplicate data
+- Raw landing table (`raw_weather`) preserves API responses for replay
 - Data quality task validates row counts, nulls, and sane value ranges
-- Per-city extract failures don't abort the whole run
+- One-time historical backfill (Open-Meteo) seeds 3 years of data; Airflow
+  DAG extracts hourly going forward — same target schema for both
+
+## Dashboard highlights
+- Long-term temperature trend with 7-day rolling average
+- Climatology heatmap: average temperature by month × hour of day
+- Year-over-year monthly comparison
+- Weather condition frequency breakdown
+- Notable extremes (hottest/coldest/windiest readings) over the selected period
+
+## Access
+
+| Service | URL |
+|---|---|
+| Airflow UI | [localhost:8080](http://localhost:8080) |
+| Dashboard | [localhost:8501](http://localhost:8501) |
+| Postgres (host access) | `localhost:5433` |
 
 ## Setup
+
 1. Copy `.env.example` to `.env`, add your OpenWeatherMap API key
 2. `docker-compose up -d`
-3. In Airflow UI (localhost:8080), add the `owm_api_key` Variable and
+3. In [Airflow UI](http://localhost:8080), add the `owm_api_key` Variable and
    `weather_warehouse` Postgres connection
-4. Unpause and trigger the `weather_etl` DAG
-5. View dashboard at localhost:8501
+4. Run the one-time historical backfill from your host machine:
+   ```bash
+   python3 scripts/backfill_lisbon.py
+   ```
+5. Unpause and trigger the `weather_etl` DAG to start hourly live updates
+6. View the [dashboard](http://localhost:8501)
 
 ## Screenshots
-[DAG graph view] [dashboard]
+[DAG graph view] 
+
+[dashboard]
