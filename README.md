@@ -199,4 +199,19 @@ list, and switch between the **Historical Data** and **Current Weather** tabs.
 | Postgres (host access) | `localhost:5433` |
 
 ## Screenshots
-[DAG graph view] [dashboard]
+[DAG graph view] 
+<img width="1423" height="848" alt="Screenshot 2026-07-25 at 11 43 02" src="https://github.com/user-attachments/assets/ab359f7d-e5e0-4b99-87b1-b96c0d78ebbe" />
+
+[dashboard]
+<img width="1429" height="616" alt="Screenshot 2026-07-25 at 11 43 52" src="https://github.com/user-attachments/assets/4e7d26db-162e-48fc-89fa-375447c8a887" />
+<img width="1383" height="530" alt="Screenshot 2026-07-25 at 11 44 37" src="https://github.com/user-attachments/assets/72842c6d-6cdc-4301-96ca-d09ebfce8f6b" />
+<img width="1368" height="487" alt="3" src="https://github.com/user-attachments/assets/f54527a6-c271-4175-a78a-d0f543de8dd6" />
+<img width="1390" height="509" alt="4" src="https://github.com/user-attachments/assets/3e2fbc21-e133-462c-b418-f3beafdd625f" />
+<img width="1377" height="464" alt="5" src="https://github.com/user-attachments/assets/8a18fff5-4d7d-4020-9964-c700de857203" />
+<img width="1372" height="503" alt="6" src="https://github.com/user-attachments/assets/22b4e802-1303-4f88-952c-46e727c88714" />
+<img width="1376" height="494" alt="7" src="https://github.com/user-attachments/assets/1f06deab-e90e-4fc7-881b-cc9a9f6481d1" />
+<img width="1351" height="477" alt="8" src="https://github.com/user-attachments/assets/561d04c8-b28b-4d75-8d13-dd1c5c89846b" />
+<img width="1353" height="628" alt="9" src="https://github.com/user-attachments/assets/8dae1f1d-a4e1-42b9-bd36-5c6ba1287c97" />
+
+
+
