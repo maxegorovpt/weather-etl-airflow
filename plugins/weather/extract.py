@@ -11,8 +11,18 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
 
+# Germany's 10 biggest cities by population
 CITIES = [
-    {"name": "Lisbon", "country": "PT"},
+    {"name": "Berlin", "country": "DE"},
+    {"name": "Hamburg", "country": "DE"},
+    {"name": "Munich", "country": "DE"},
+    {"name": "Cologne", "country": "DE"},
+    {"name": "Frankfurt", "country": "DE"},
+    {"name": "Stuttgart", "country": "DE"},
+    {"name": "Dusseldorf", "country": "DE"},
+    {"name": "Leipzig", "country": "DE"},
+    {"name": "Dortmund", "country": "DE"},
+    {"name": "Essen", "country": "DE"},
 ]
 
 
@@ -26,7 +36,7 @@ def fetch_weather_for_city(city_name: str, country: str, api_key: str) -> dict:
     params = {
         "q": f"{city_name},{country}",
         "appid": api_key,
-        "units": "metric",  # get Celsius directly, skip manual Kelvin conversion
+        "units": "metric",
     }
     response = requests.get(BASE_URL, params=params, timeout=10)
     response.raise_for_status()
@@ -36,7 +46,6 @@ def fetch_weather_for_city(city_name: str, country: str, api_key: str) -> dict:
 def extract_all(api_key: str) -> list[dict]:
     """
     Fetch weather for all tracked cities.
-    Returns a list of dicts: {city_name, country, fetched_at, raw_json}
     One city's failure does not stop the others (logged and skipped).
     """
     results = []
@@ -56,7 +65,6 @@ def extract_all(api_key: str) -> list[dict]:
             logger.info(f"Fetched weather for {city['name']}")
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to fetch weather for {city['name']}: {e}")
-            # Deliberately continue -- one bad city shouldn't fail the whole run.
             continue
 
     if not results:

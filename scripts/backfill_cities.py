@@ -1,22 +1,20 @@
 """
-One-time backfill: pull ~3 years of hourly historical weather for Lisbon
-from the Open-Meteo Archive API (free, no API key needed) and load it
-into fact_weather.
+One-time backfill: pull ~3 years of hourly historical weather for every
+city in dim_city from the Open-Meteo Archive API (free, no API key needed)
+and load it into fact_weather.
 
 Run this ONCE from your host machine (not inside Airflow):
-    python3 scripts/backfill_lisbon.py
+    python3 scripts/backfill_cities.py
 
 Requires: requests, psycopg2-binary  (pip install requests psycopg2-binary)
 """
 import sys
+import time
 from datetime import date, timedelta
 
 import psycopg2
 import requests
 from psycopg2.extras import execute_values
-
-LAT, LON = 38.7223, -9.1393
-CITY_NAME = "Lisbon"
 
 # Connect via the HOST-mapped port (5433), since this runs on your machine, not in Docker
 DB_CONFIG = {
@@ -27,7 +25,7 @@ DB_CONFIG = {
     "password": "weather_pass",
 }
 
-# WMO weather code -> human-readable description
+# WMO weather code -> detailed description (maps to weather_desc)
 WEATHER_CODES = {
     0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
     45: "Fog", 48: "Depositing rime fog",
@@ -42,13 +40,28 @@ WEATHER_CODES = {
     95: "Thunderstorm", 96: "Thunderstorm with slight hail", 99: "Thunderstorm with heavy hail",
 }
 
+# WMO weather code -> short category (matches OpenWeatherMap's "main" granularity)
+WEATHER_MAIN_CODES = {
+    0: "Clear", 1: "Clouds", 2: "Clouds", 3: "Clouds",
+    45: "Fog", 48: "Fog",
+    51: "Drizzle", 53: "Drizzle", 55: "Drizzle",
+    56: "Drizzle", 57: "Drizzle",
+    61: "Rain", 63: "Rain", 65: "Rain",
+    66: "Rain", 67: "Rain",
+    71: "Snow", 73: "Snow", 75: "Snow",
+    77: "Snow",
+    80: "Rain", 81: "Rain", 82: "Rain",
+    85: "Snow", 86: "Snow",
+    95: "Thunderstorm", 96: "Thunderstorm", 99: "Thunderstorm",
+}
 
-def fetch_historical(start: date, end: date) -> dict:
+
+def fetch_historical(lat: float, lon: float, start: date, end: date) -> dict:
     """Fetch one date range of hourly data from Open-Meteo Archive API."""
     url = "https://archive-api.open-meteo.com/v1/archive"
     params = {
-        "latitude": LAT,
-        "longitude": LON,
+        "latitude": lat,
+        "longitude": lon,
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
         "hourly": "temperature_2m,relative_humidity_2m,apparent_temperature,"
@@ -67,53 +80,27 @@ def to_rows(data: dict, city_id: int) -> list[tuple]:
     for i, ts in enumerate(hourly["time"]):
         temp = hourly["temperature_2m"][i]
         if temp is None:
-            continue  # skip gaps in the historical record
+            continue
         code = hourly["weathercode"][i]
         rows.append(
             (
                 city_id,
-                ts,  # ISO string, Postgres will cast to timestamp
+                ts,
                 temp,
                 hourly["apparent_temperature"][i],
                 hourly["relative_humidity_2m"][i],
                 hourly["surface_pressure"][i],
                 hourly["wind_speed_10m"][i],
-                WEATHER_CODES.get(code, "Unknown"),
+                WEATHER_MAIN_CODES.get(code, "Unknown"),
                 WEATHER_CODES.get(code, "Unknown"),
             )
         )
     return rows
 
 
-def main():
-    end = date.today() - timedelta(days=1)  # archive API needs a completed day
-    start = end - timedelta(days=365 * 3)
-
-    conn = psycopg2.connect(**DB_CONFIG)
-
-    with conn.cursor() as cur:
-        cur.execute("SELECT city_id FROM dim_city WHERE city_name = %s", (CITY_NAME,))
-        row = cur.fetchone()
-        if row is None:
-            print(f"City '{CITY_NAME}' not found in dim_city -- run create_tables.sql first.")
-            sys.exit(1)
-        city_id = row[0]
-
-    print(f"Backfilling {CITY_NAME} from {start} to {end}...")
-
-    # Fetch in yearly chunks -- keeps each request a manageable size
-    all_rows = []
-    chunk_start = start
-    while chunk_start < end:
-        chunk_end = min(chunk_start + timedelta(days=365), end)
-        print(f"  Fetching {chunk_start} -> {chunk_end}")
-        data = fetch_historical(chunk_start, chunk_end)
-        rows = to_rows(data, city_id)
-        all_rows.extend(rows)
-        chunk_start = chunk_end + timedelta(days=1)
-
-    print(f"Fetched {len(all_rows)} hourly records. Loading into fact_weather...")
-
+def load_rows(conn, rows: list[tuple]) -> None:
+    if not rows:
+        return
     with conn.cursor() as cur:
         execute_values(
             cur,
@@ -124,11 +111,43 @@ def main():
             VALUES %s
             ON CONFLICT (city_id, observed_at) DO NOTHING
             """,
-            all_rows,
+            rows,
         )
     conn.commit()
+
+
+def main():
+    end = date.today() - timedelta(days=1)
+    start = end - timedelta(days=365 * 3)
+
+    conn = psycopg2.connect(**DB_CONFIG)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT city_id, city_name, lat, lon FROM dim_city ORDER BY city_name")
+        cities = cur.fetchall()
+
+    if not cities:
+        print("No cities found in dim_city -- run create_tables.sql first.")
+        sys.exit(1)
+
+    print(f"Backfilling {len(cities)} cities from {start} to {end}...\n")
+
+    for city_id, city_name, lat, lon in cities:
+        print(f"[{city_name}] fetching {start} -> {end}")
+        all_rows = []
+        chunk_start = start
+        while chunk_start < end:
+            chunk_end = min(chunk_start + timedelta(days=365), end)
+            data = fetch_historical(lat, lon, chunk_start, chunk_end)
+            all_rows.extend(to_rows(data, city_id))
+            chunk_start = chunk_end + timedelta(days=1)
+            time.sleep(0.5)  # be polite to the free API
+
+        load_rows(conn, all_rows)
+        print(f"[{city_name}] loaded {len(all_rows)} rows\n")
+
     conn.close()
-    print("Backfill complete.")
+    print("Backfill complete for all cities.")
 
 
 if __name__ == "__main__":
