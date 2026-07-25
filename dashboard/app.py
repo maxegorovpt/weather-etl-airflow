@@ -50,6 +50,26 @@ WEATHER_LABEL = {
 }
 
 
+def render_table(df: pd.DataFrame, index: bool = False):
+    """
+    Render a DataFrame as plain HTML instead of st.table/st.dataframe.
+    Both native Streamlit table widgets route through pyarrow internally,
+    which segfaults on this platform -- this sidesteps pyarrow entirely.
+    """
+    html = df.to_html(index=index, border=0, classes="custom-table")
+    st.markdown(
+        """
+        <style>
+        .custom-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .custom-table th { text-align: left; padding: 6px 10px; border-bottom: 2px solid #444; }
+        .custom-table td { padding: 6px 10px; border-bottom: 1px solid #333; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(html, unsafe_allow_html=True)
+
+
 @st.cache_data(ttl=300)
 def load_data() -> pd.DataFrame:
     engine = get_engine()
@@ -224,7 +244,7 @@ with tab_historical:
         summary.columns = ["City", "Population", "Avg Temp (°C)", "Max Temp (°C)",
                             "Min Temp (°C)", "Avg Humidity (%)", "Avg Wind (m/s)"]
         summary = summary.sort_values("Population", ascending=False)
-        st.table(summary.set_index("City"))
+        render_table(summary.set_index("City"), index=True)
 
         st.divider()
 
@@ -257,7 +277,7 @@ with tab_historical:
         with st.expander("Raw data"):
             city_df_sorted = city_df.sort_values("observed_at", ascending=False)
             st.caption(f"Showing latest 100 of {len(city_df_sorted):,} rows — download for the full set")
-            st.table(city_df_sorted.head(100).reset_index(drop=True))
+            render_table(city_df_sorted.head(100))
             st.download_button(
                 "Download full data as CSV",
                 city_df_sorted.to_csv(index=False),

@@ -1,42 +1,52 @@
 # Germany Weather ETL Pipeline
 
-An end-to-end ETL pipeline built with Airflow, tracking weather across
-**Germany's 10 largest cities**. Combines a 3-year historical backfill with
-live hourly extraction, transforms and validates the data, loads it into
-Postgres, and visualizes it in an interactive Streamlit dashboard with
-city-level filtering and comparison.
+## Project description
 
-## Cities tracked
+An end-to-end ETL pipeline built with **Apache Airflow**, tracking weather
+across **Germany's 10 largest cities**. The project combines a one-time,
+3-year historical backfill with a live hourly extraction pipeline,
+transforms and validates the data, loads it into **PostgreSQL**, and
+visualizes it in an interactive **Streamlit** dashboard — including a live
+7-day forecast styled after iOS weather widgets.
+
+It was built as a portfolio project to demonstrate practical, production-style
+data engineering: idempotent loads, data quality checks, dimensional
+modeling, and a pipeline that combines a bulk historical seed with ongoing
+incremental updates — the same pattern real data warehouses use.
+
+### Cities tracked
 
 Berlin, Hamburg, Munich, Cologne, Frankfurt, Stuttgart, Dusseldorf, Leipzig,
 Dortmund, Essen — Germany's 10 biggest cities by population.
 
-## Architecture
-[diagram here]
+### Architecture
 
 ```
 Open-Meteo Archive API  ──(one-time backfill, all 10 cities)──┐
                                                                  ├──> Postgres (fact_weather) ──> Streamlit dashboard
 OpenWeatherMap API  ──(Airflow, hourly, all 10 cities)─────────┘
+
+Open-Meteo Forecast API ──(live, on-demand)────────────────────────> Streamlit dashboard (Current Weather tab)
 ```
 
-## Stack
-- Apache Airflow (TaskFlow API) — orchestration for the ongoing hourly extract
-- PostgreSQL — data warehouse (star schema: `dim_city` + `fact_weather`)
-- Streamlit + Plotly — dashboard, including an interactive map (OpenStreetMap tiles)
-- Docker Compose — local infra
+### Stack
 
-## Data sources
+- **Apache Airflow** (TaskFlow API) — orchestration for the ongoing hourly extract
+- **PostgreSQL** — data warehouse (star schema: `dim_city` + `fact_weather`)
+- **Streamlit + Plotly** — dashboard, including an interactive map (OpenStreetMap tiles)
+- **Docker Compose** — local infra for everything above
+
+### Data sources
+
 - **Historical backfill**: [Open-Meteo Archive API](https://open-meteo.com/en/docs/historical-weather-api)
   (free, no key required) — used once to load ~3 years of hourly data per city
 - **Live extraction**: [OpenWeatherMap Current Weather API](https://openweathermap.org/current) —
   run hourly by Airflow, across all 10 cities, to keep the dataset current
+- **Live forecast**: [Open-Meteo Forecast API](https://open-meteo.com/en/docs/api)
+  (free, no key required) — called on-demand by the dashboard's "Current Weather" tab
 
-Combining a bulk historical load with an incremental live pipeline mirrors how
-real-world data warehouses are seeded (backfill) and then kept up to date
-(incremental ETL).
+### Design decisions
 
-## Design decisions
 - Idempotent upserts (`ON CONFLICT`) so retries/backfills never duplicate data
 - Raw landing table (`raw_weather`) preserves API responses for replay
 - Data quality task validates row counts, nulls, and sane value ranges
@@ -48,19 +58,137 @@ real-world data warehouses are seeded (backfill) and then kept up to date
   a hardcoded list, so adding/removing tracked cities requires no code change
 - Weather condition mix is normalized to percentages per city (not raw counts),
   so cities with different amounts of data remain fairly comparable
+- Dashboard tables are rendered as plain HTML rather than Streamlit's native
+  table widgets, which route through pyarrow's Arrow serialization — a path
+  that proved unstable (segfaults) on this platform. Bypassing it trades
+  built-in sorting/resizing for a dashboard that doesn't crash
 
-## Dashboard highlights
-- Country-level header: capital, population, currency, time zone, cities tracked
-- Interactive map: city bubbles sized by population, colored by average
-  temperature, with humidity on hover
-- Multi-select city filter + date range (compare one, several, or all 10 cities)
-- Temperature trend, one line per selected city
-- City comparison bar charts: average temperature and humidity, color-scaled
-- Climatology view: per-city small-multiple heatmaps (month × hour of day),
-  or a detailed single-city view via dropdown
-- Weather condition mix by city, shown as normalized percentages
-- Wind speed distribution, overlaid by city
-- City summary table (population + key weather stats, sorted by population)
+### Dashboard highlights
+
+- Sidebar city list — pick one city, drives the whole dashboard
+- **Historical Data tab**: country header, interactive map (bubble size =
+  population, color = avg temperature), city comparison bar charts, weather
+  condition mix, wind speed distribution, summary table, and a per-city deep
+  dive (temperature trend with rolling average, monthly distribution box plot)
+- **Current Weather tab**: live current conditions and 7-day forecast styled
+  after iOS weather widgets — big current temp, hourly mini chart, a row of
+  day cards, and a high/low trend line
+
+## Getting started from scratch
+
+### Prerequisites
+
+- Docker Desktop installed and running
+- Python 3 (for running the one-time backfill script from your host machine)
+- A free [OpenWeatherMap API key](https://openweathermap.org/api) (sign up,
+  key may take up to ~1 hour to activate after signup)
+
+### 1. Clone and configure environment variables
+
+```bash
+git clone <your-repo-url>
+cd weather-etl-airflow
+```
+
+Create `.env` in the project root:
+
+```
+AIRFLOW_UID=50000
+
+_AIRFLOW_WWW_USER_USERNAME=airflow
+_AIRFLOW_WWW_USER_PASSWORD=airflow
+
+WAREHOUSE_DB=weather
+WAREHOUSE_USER=weather_user
+WAREHOUSE_PASSWORD=weather_pass
+WAREHOUSE_PORT=5433
+
+OWM_API_KEY=your_openweathermap_api_key_here
+```
+
+On Linux, replace `AIRFLOW_UID=50000` with your actual UID (`id -u`) to avoid
+volume permission issues.
+
+### 2. Build and start all services
+
+```bash
+docker-compose build
+docker-compose up airflow-init
+docker-compose up -d
+```
+
+Give it 1–2 minutes on first boot. Check everything is healthy:
+
+```bash
+docker-compose ps
+```
+
+You should see `airflow-webserver`, `airflow-scheduler`, `airflow-triggerer`,
+`postgres`, `redis`, `weather-db`, and `dashboard` all `Up`.
+
+### 3. Create the database schema
+
+```bash
+docker cp sql/create_tables.sql weather_warehouse:/create_tables.sql
+docker exec -it weather_warehouse psql -U weather_user -d weather -f /create_tables.sql
+```
+
+Verify the 10 cities were seeded:
+
+```bash
+docker exec -it weather_warehouse psql -U weather_user -d weather -c \
+  "SELECT city_name, population FROM dim_city ORDER BY population DESC;"
+```
+
+### 4. Configure Airflow
+
+Open [localhost:8080](http://localhost:8080), log in with `airflow` / `airflow`.
+
+**Add the API key as a Variable:**
+Admin → Variables → + → Key: `owm_api_key`, Value: your OpenWeatherMap key
+
+**Add the Postgres connection:**
+Admin → Connections → +
+
+| Field | Value |
+|---|---|
+| Connection Id | `weather_warehouse` |
+| Connection Type | `Postgres` |
+| Host | `weather-db` |
+| Database | `weather` |
+| Login | `weather_user` |
+| Password | `weather_pass` |
+| Port | `5432` |
+
+### 5. Run the one-time historical backfill
+
+From your host machine (not inside Docker):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install requests psycopg2-binary
+python3 scripts/backfill_cities.py
+```
+
+This pulls ~3 years of hourly data for all 10 cities from Open-Meteo — takes
+a few minutes. Verify it landed:
+
+```bash
+docker exec -it weather_warehouse psql -U weather_user -d weather -c \
+  "SELECT MIN(observed_at), MAX(observed_at), COUNT(*) FROM fact_weather;"
+```
+
+### 6. Start the live hourly pipeline
+
+In the Airflow UI, find `weather_etl` in the DAG list, unpause it, and
+trigger a manual run to confirm it works. Going forward it runs automatically
+every hour, adding live data on top of the historical backfill.
+
+### 7. View the dashboard
+
+Open [localhost:8501](http://localhost:8501). Pick a city from the sidebar
+list, and switch between the **Historical Data** and **Current Weather** tabs.
 
 ## Access
 
@@ -69,19 +197,6 @@ real-world data warehouses are seeded (backfill) and then kept up to date
 | Airflow UI | [localhost:8080](http://localhost:8080) |
 | Dashboard | [localhost:8501](http://localhost:8501) |
 | Postgres (host access) | `localhost:5433` |
-
-## Setup
-
-1. Copy `.env.example` to `.env`, add your OpenWeatherMap API key
-2. `docker-compose up -d`
-3. In [Airflow UI](http://localhost:8080), add the `owm_api_key` Variable and
-   `weather_warehouse` Postgres connection
-4. Run the one-time historical backfill (all 10 cities) from your host machine:
-   ```bash
-   python3 scripts/backfill_cities.py
-   ```
-5. Unpause and trigger the `weather_etl` DAG to start hourly live updates
-6. View the [dashboard](http://localhost:8501)
 
 ## Screenshots
 [DAG graph view] [dashboard]
