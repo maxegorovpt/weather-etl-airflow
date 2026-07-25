@@ -199,10 +199,10 @@ list, and switch between the **Historical Data** and **Current Weather** tabs.
 | Postgres (host access) | `localhost:5433` |
 
 ## Screenshots
-[DAG graph view] 
+**DAG graph view** 
 <img width="1423" height="848" alt="Screenshot 2026-07-25 at 11 43 02" src="https://github.com/user-attachments/assets/ab359f7d-e5e0-4b99-87b1-b96c0d78ebbe" />
 
-[dashboard]
+**dashboard**
 <img width="1429" height="616" alt="Screenshot 2026-07-25 at 11 43 52" src="https://github.com/user-attachments/assets/4e7d26db-162e-48fc-89fa-375447c8a887" />
 <img width="1383" height="530" alt="Screenshot 2026-07-25 at 11 44 37" src="https://github.com/user-attachments/assets/72842c6d-6cdc-4301-96ca-d09ebfce8f6b" />
 <img width="1368" height="487" alt="3" src="https://github.com/user-attachments/assets/f54527a6-c271-4175-a78a-d0f543de8dd6" />
