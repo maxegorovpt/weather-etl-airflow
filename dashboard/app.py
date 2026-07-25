@@ -224,7 +224,7 @@ with tab_historical:
         summary.columns = ["City", "Population", "Avg Temp (°C)", "Max Temp (°C)",
                             "Min Temp (°C)", "Avg Humidity (%)", "Avg Wind (m/s)"]
         summary = summary.sort_values("Population", ascending=False)
-        st.dataframe(summary, hide_index=True, use_container_width=True)
+        st.table(summary.set_index("City"))
 
         st.divider()
 
@@ -255,7 +255,15 @@ with tab_historical:
         st.plotly_chart(fig_box, use_container_width=True)
 
         with st.expander("Raw data"):
-            st.dataframe(city_df.sort_values("observed_at", ascending=False), hide_index=True, use_container_width=True)
+            city_df_sorted = city_df.sort_values("observed_at", ascending=False)
+            st.caption(f"Showing latest 100 of {len(city_df_sorted):,} rows — download for the full set")
+            st.table(city_df_sorted.head(100).reset_index(drop=True))
+            st.download_button(
+                "Download full data as CSV",
+                city_df_sorted.to_csv(index=False),
+                file_name=f"{selected_city.lower()}_weather.csv",
+                mime="text/csv",
+            )
 
 # =========================================================
 # TAB 2: CURRENT WEATHER (Apple-widget style, live + 7-day)
